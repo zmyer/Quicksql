@@ -1,16 +1,16 @@
 package com.qihoo.qsql.codegen.spark;
 
 import com.qihoo.qsql.codegen.ClassBodyComposer;
+import com.qihoo.qsql.codegen.ClassBodyComposer.CodeCategory;
 import com.qihoo.qsql.codegen.QueryGenerator;
+import com.qihoo.qsql.plan.ProcedureVisitor;
 import com.qihoo.qsql.plan.proc.DirectQueryProcedure;
+import com.qihoo.qsql.plan.proc.DiskLoadProcedure;
 import com.qihoo.qsql.plan.proc.ExtractProcedure;
 import com.qihoo.qsql.plan.proc.LoadProcedure;
 import com.qihoo.qsql.plan.proc.MemoryLoadProcedure;
 import com.qihoo.qsql.plan.proc.QueryProcedure;
 import com.qihoo.qsql.plan.proc.TransformProcedure;
-import com.qihoo.qsql.plan.ProcedureVisitor;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Provide several visit methods to traversing the whole {@link QueryProcedure} which will be execute on Spark.
@@ -18,37 +18,39 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SparkProcedureVisitor extends ProcedureVisitor {
 
     private ClassBodyComposer composer;
-    private AtomicInteger varId;
-    private String variable;
 
-    public SparkProcedureVisitor(AtomicInteger varId, ClassBodyComposer composer) {
+    public SparkProcedureVisitor(ClassBodyComposer composer) {
         this.composer = composer;
-        this.varId = varId;
     }
 
     @Override
     public void visit(ExtractProcedure extractProcedure) {
-        createVariableName();
+        composer.handleComposition(CodeCategory.SENTENCE, "{");
         QueryGenerator queryBuilder = QueryGenerator.getQueryGenerator(
-            extractProcedure, composer, variable, true);
+            extractProcedure, composer, true);
         queryBuilder.execute();
         queryBuilder.saveToTempTable();
+        composer.handleComposition(CodeCategory.SENTENCE, "}");
         visitNext(extractProcedure);
     }
 
     @Override
     public void visit(TransformProcedure transformProcedure) {
-        createVariableName();
         composer.handleComposition(ClassBodyComposer.CodeCategory.SENTENCE,
-            "Dataset<Row> " + variable + " = spark.sql(\"" + transformProcedure.sql() + "\");");
+            "tmp = spark.sql(\"" + transformProcedure.sql() + "\");");
         visitNext(transformProcedure);
     }
 
     @Override
     public void visit(LoadProcedure loadProcedure) {
         if (loadProcedure instanceof MemoryLoadProcedure) {
+            composer.handleComposition(ClassBodyComposer.CodeCategory.SENTENCE, "tmp.show();\n");
+        } else if (loadProcedure instanceof DiskLoadProcedure) {
             composer.handleComposition(ClassBodyComposer.CodeCategory.SENTENCE,
-                variable + ".show();\n");
+                String.format("tmp.write().format(\"com.databricks.spark.csv\")"
+                    + ".save(\"%s\");\n", ((DiskLoadProcedure) loadProcedure).path));
+            // composer.handleComposition(ClassBodyComposer.CodeCategory.SENTENCE,
+            //     String.format("tmp.write().text(\"%s\");\n", ((DiskLoadProcedure) loadProcedure).path));
         }
         visitNext(loadProcedure);
     }
@@ -62,9 +64,4 @@ public class SparkProcedureVisitor extends ProcedureVisitor {
     public void visit(QueryProcedure queryProcedure) {
         visitNext(queryProcedure);
     }
-
-    protected void createVariableName() {
-        this.variable = "$" + (varId.incrementAndGet());
-    }
-
 }

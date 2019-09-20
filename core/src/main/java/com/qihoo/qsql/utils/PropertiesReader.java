@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
+import org.apache.log4j.PropertyConfigurator;
 
 public class PropertiesReader {
 
@@ -67,12 +68,29 @@ public class PropertiesReader {
     }
 
     /**
-     * Create metadata file path.
-     *
-     * @return metadata file path
+     * whether to execute in development environment.
      */
     public static boolean isDevelopEnv() {
         String osName = System.getProperties().getProperty("os.name");
         return osName.contains("Windows") || osName.contains("Mac");
+    }
+
+    /**
+     * Used to distinguish script execution methods in different environments.
+     */
+    public static boolean isSupportedShell() {
+        String osName = System.getProperties().getProperty("os.name");
+        return ! osName.contains("Windows");
+    }
+
+    /**
+     * Read log properties.
+     */
+    public static void configLogger() {
+        String logProp;
+        if (((logProp = System.getenv("QSQL_HOME")) != null) && ! logProp.isEmpty()) {
+            PropertyConfigurator.configure(logProp
+                + File.separator + "conf" + File.separator + "log4j.properties");
+        }
     }
 }

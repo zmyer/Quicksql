@@ -1,14 +1,13 @@
 package com.qihoo.qsql.plan.proc;
 
 import com.qihoo.qsql.plan.ProcedureVisitor;
+import com.qihoo.qsql.plan.func.SparkSqlDialect;
+import java.util.List;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.rel2sql.RelToSqlConverter;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
-import org.apache.calcite.sql.dialect.HiveSqlDialect;
 import org.apache.calcite.util.Util;
-
-import java.util.List;
 
 /**
  * Represent the execution procedure in calculation engine.
@@ -23,7 +22,8 @@ public abstract class TransformProcedure extends QueryProcedure {
      * @param next next procedure in DAG
      * @param relNode relNode
      */
-    public TransformProcedure(QueryProcedure next, RelNode relNode) {
+    public TransformProcedure(QueryProcedure next,
+        RelNode relNode) {
         super(next);
         this.parent = relNode;
     }
@@ -34,7 +34,7 @@ public abstract class TransformProcedure extends QueryProcedure {
      * @return sql
      */
     public String sql() {
-        SqlDialect dialect = new HiveSqlDialect(SqlDialect.EMPTY_CONTEXT);
+        SqlDialect dialect = new SparkSqlDialect(SqlDialect.EMPTY_CONTEXT);
         RelToSqlConverter converter = new RelToSqlConverter(dialect);
 
         SqlNode sqlNode = converter.visitChild(0, parent).asStatement();
